@@ -1,7 +1,6 @@
 package main
 
 import (
-	goerrors "errors"
 	"flag"
 	"fmt"
 	"github.com/pkg/errors"
@@ -48,7 +47,7 @@ func main() {
 
 func handleConn(conn net.Conn) {
 	if _, err := io.Copy(conn, conn); err != nil {
-		if !goerrors.Is(err, net.ErrClosed) {
+		if !errors.Is(err, net.ErrClosed) {
 			logrus.Error(errors.Wrap(err, "unable to copy conn"))
 		}
 		_ = conn.Close()
