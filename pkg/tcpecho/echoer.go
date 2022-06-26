@@ -19,12 +19,16 @@ type TCPEchoer struct {
 
 func NewTCPEchoer(port int, shout bool) *TCPEchoer {
 	return &TCPEchoer{
-		port:  port,
-		shout: shout,
+		port:    port,
+		shout:   shout,
+		errChan: make(chan error, 100),
 	}
 }
 
 func (e *TCPEchoer) Start() (err error) {
+	if e.lis != nil {
+		return errors.Wrap(ErrAlreadyStarted, "cannot start")
+	}
 	e.lis, err = net.ListenTCP("tcp", &net.TCPAddr{Port: e.port})
 	if err != nil {
 		return errors.Wrap(err, "cannot listen tcp")
@@ -36,6 +40,17 @@ func (e *TCPEchoer) Start() (err error) {
 		}
 		go e.handleConn(conn)
 	}
+}
+
+func (e *TCPEchoer) Port() (port int, err error) {
+	if e.lis == nil {
+		return 0, errors.Wrap(ErrNotStarted, "cannot get port")
+	}
+	addr, ok := e.lis.Addr().(*net.TCPAddr)
+	if !ok {
+		return 0, errors.Wrap(errAssertion, "cannot get port")
+	}
+	return addr.Port, nil
 }
 
 func (e *TCPEchoer) Close() (err error) {
@@ -112,3 +127,6 @@ func copyShout(dst io.Writer, src io.Reader) (written int64, err error) {
 }
 
 var errInvalidWrite = errors.New("invalid write result")
+var ErrNotStarted = errors.New("not started")
+var ErrAlreadyStarted = errors.New("already started")
+var errAssertion = errors.New("assertion failed")
