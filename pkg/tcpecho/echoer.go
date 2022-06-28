@@ -9,8 +9,9 @@ import (
 // TCPEchoer providers a TCP server that echoes whatever data sent to it. It transforms the
 // english letter in the data to uppercase if the `shout` option is enabled.
 type TCPEchoer struct {
-	port  int
-	shout bool
+	port       int
+	actualPort int
+	shout      bool
 
 	errChan chan error
 
@@ -33,13 +34,17 @@ func (e *TCPEchoer) Start() (err error) {
 	if err != nil {
 		return errors.Wrap(err, "cannot listen tcp")
 	}
-	for {
-		conn, err := e.lis.AcceptTCP()
-		if err != nil {
-			return errors.Wrap(err, "cannot listen connection")
+	go func() {
+		for {
+			conn, err := e.lis.AcceptTCP()
+			if err != nil {
+				e.errChan <- errors.Wrap(err, "cannot listen connection")
+				return
+			}
+			go e.handleConn(conn)
 		}
-		go e.handleConn(conn)
-	}
+	}()
+	return nil
 }
 
 func (e *TCPEchoer) Port() (port int, err error) {
@@ -76,9 +81,9 @@ func (e *TCPEchoer) handleConn(conn *net.TCPConn) {
 
 func (e *TCPEchoer) copy(dst io.Writer, src io.Reader) (written int64, err error) {
 	if e.shout {
-		return io.Copy(dst, src)
-	} else {
 		return copyShout(dst, src)
+	} else {
+		return io.Copy(dst, src)
 	}
 }
 
@@ -87,7 +92,7 @@ func (e *TCPEchoer) copy(dst io.Writer, src io.Reader) (written int64, err error
 func copyShout(dst io.Writer, src io.Reader) (written int64, err error) {
 	const size = 32 * 1024
 
-	const capLetterDiff = byte('A') - byte('a')
+	const capLetterDiff = byte('a') - byte('A')
 
 	buf := make([]byte, size)
 
@@ -96,7 +101,7 @@ func copyShout(dst io.Writer, src io.Reader) (written int64, err error) {
 		if nr > 0 {
 			for i := 0; i < nr; i++ {
 				if 'a' <= buf[i] && buf[i] <= 'z' {
-					buf[i] += capLetterDiff
+					buf[i] -= capLetterDiff
 				}
 			}
 			nw, ew := dst.Write(buf[0:nr])
