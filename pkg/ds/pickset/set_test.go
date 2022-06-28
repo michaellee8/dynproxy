@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-func TestPickableSet(t *testing.T) {
-	ps := NewPickableSet[string]()
+func TestTargetSet(t *testing.T) {
+	ps := NewTargetSet[string]()
 	p := NewPicker(ps)
 	require.Equal(t, true, ps.Add("a"))
 	require.Equal(t, false, ps.Add("a"))
@@ -87,4 +87,30 @@ func TestPickableSet(t *testing.T) {
 		}
 	}
 
+}
+
+func TestPicker_NoElementAvailable(t *testing.T) {
+	ps := NewTargetSet[string]()
+	p := NewPicker(ps)
+	require.Equal(t, true, ps.Add("a"))
+	require.Equal(t, true, ps.Add("b"))
+	require.Equal(t, true, ps.Add("c"))
+	require.Equal(t, true, ps.Block("a"))
+	require.Equal(t, true, ps.Block("b"))
+	for i := 0; i < 3; i++ {
+		picked, err := p.Pick()
+		require.NoError(t, err)
+		require.Equal(t, "c", picked)
+	}
+	require.Equal(t, true, ps.Block("c"))
+	for i := 0; i < 3; i++ {
+		_, err := p.Pick()
+		require.ErrorIs(t, err, ErrNoElementAvailableForPicking)
+	}
+	require.Equal(t, true, ps.Unblock("a"))
+	for i := 0; i < 3; i++ {
+		picked, err := p.Pick()
+		require.NoError(t, err)
+		require.Equal(t, "a", picked)
+	}
 }

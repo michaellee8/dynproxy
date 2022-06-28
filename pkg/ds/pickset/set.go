@@ -7,17 +7,17 @@ import (
 	"time"
 )
 
-// PickableSet is a data structure that provides the basic functionalities of a set and meanwhile provides a round-robin
+// TargetSet is a data structure that provides the basic functionalities of a set and meanwhile provides a round-robin
 // picking mechanism and the ability to block an element being picked permanently or in a given duration.
-type PickableSet[T comparable] struct {
+type TargetSet[T comparable] struct {
 	list       *list.List[T]
 	searchMap  map[T]*list.Node[T]
 	blockedSet map[T]struct{}
 	mut        *sync.RWMutex
 }
 
-func NewPickableSet[T comparable]() *PickableSet[T] {
-	return &PickableSet[T]{
+func NewTargetSet[T comparable]() *TargetSet[T] {
+	return &TargetSet[T]{
 		list:       list.New[T](),
 		searchMap:  make(map[T]*list.Node[T]),
 		blockedSet: make(map[T]struct{}),
@@ -25,24 +25,24 @@ func NewPickableSet[T comparable]() *PickableSet[T] {
 	}
 }
 
-func (s *PickableSet[T]) Len() int {
+func (s *TargetSet[T]) Len() int {
 	s.mut.RLock()
 	defer s.mut.RUnlock()
 	return s.len()
 }
 
-func (s *PickableSet[T]) len() int {
+func (s *TargetSet[T]) len() int {
 	return len(s.searchMap)
 }
 
 // Add returns true if the element is added, and false if the element already exists and therefore not added.
-func (s *PickableSet[T]) Add(key T) bool {
+func (s *TargetSet[T]) Add(key T) bool {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 	return s.add(key)
 }
 
-func (s *PickableSet[T]) add(key T) bool {
+func (s *TargetSet[T]) add(key T) bool {
 	if _, ok := s.searchMap[key]; ok {
 		return false
 	}
@@ -53,13 +53,13 @@ func (s *PickableSet[T]) add(key T) bool {
 }
 
 // Remove returns true if the element is removed, and false if the element does not exist and therefore not removed.
-func (s *PickableSet[T]) Remove(key T) bool {
+func (s *TargetSet[T]) Remove(key T) bool {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 	return s.remove(key)
 }
 
-func (s *PickableSet[T]) remove(key T) bool {
+func (s *TargetSet[T]) remove(key T) bool {
 	node, ok := s.searchMap[key]
 	if !ok {
 		return false
@@ -72,37 +72,37 @@ func (s *PickableSet[T]) remove(key T) bool {
 	return true
 }
 
-func (s *PickableSet[T]) Has(key T) bool {
+func (s *TargetSet[T]) Has(key T) bool {
 	s.mut.RLock()
 	defer s.mut.RUnlock()
 	return s.has(key)
 }
 
-func (s *PickableSet[T]) has(key T) bool {
+func (s *TargetSet[T]) has(key T) bool {
 	_, ok := s.searchMap[key]
 	return ok
 }
 
-func (s *PickableSet[T]) HasUnblocked(key T) bool {
+func (s *TargetSet[T]) HasUnblocked(key T) bool {
 	s.mut.RLock()
 	defer s.mut.RUnlock()
 	return s.hasUnblocked(key)
 }
 
-func (s *PickableSet[T]) hasUnblocked(key T) bool {
+func (s *TargetSet[T]) hasUnblocked(key T) bool {
 	_, searchOk := s.searchMap[key]
 	_, blockOk := s.blockedSet[key]
 	return searchOk && !blockOk
 }
 
 // Block returns true if the element is blocked, or false if element is already blocked or element does not exist.
-func (s *PickableSet[T]) Block(key T) bool {
+func (s *TargetSet[T]) Block(key T) bool {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 	return s.block(key)
 }
 
-func (s *PickableSet[T]) block(key T) bool {
+func (s *TargetSet[T]) block(key T) bool {
 	if _, searchOk := s.searchMap[key]; !searchOk {
 		return false
 	}
@@ -114,13 +114,13 @@ func (s *PickableSet[T]) block(key T) bool {
 }
 
 // Unblock returns true if the element is unblocked, or false if element is not blocked or element does not exist.
-func (s *PickableSet[T]) Unblock(key T) bool {
+func (s *TargetSet[T]) Unblock(key T) bool {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 	return s.unblock(key)
 }
 
-func (s *PickableSet[T]) unblock(key T) bool {
+func (s *TargetSet[T]) unblock(key T) bool {
 	if _, searchOk := s.searchMap[key]; !searchOk {
 		return false
 	}
@@ -131,18 +131,18 @@ func (s *PickableSet[T]) unblock(key T) bool {
 	return true
 }
 
-func (s *PickableSet[T]) IsBlocked(key T) bool {
+func (s *TargetSet[T]) IsBlocked(key T) bool {
 	s.mut.RLock()
 	defer s.mut.RUnlock()
 	return s.isBlocked(key)
 }
 
-func (s *PickableSet[T]) isBlocked(key T) bool {
+func (s *TargetSet[T]) isBlocked(key T) bool {
 	_, ok := s.blockedSet[key]
 	return ok
 }
 
-func (s *PickableSet[T]) BlockForDuration(key T, duration time.Duration) bool {
+func (s *TargetSet[T]) BlockForDuration(key T, duration time.Duration) bool {
 	if s.IsBlocked(key) {
 		return false
 	}
@@ -156,13 +156,13 @@ func (s *PickableSet[T]) BlockForDuration(key T, duration time.Duration) bool {
 }
 
 type Picker[T comparable] struct {
-	ps       *PickableSet[T]
+	ps       *TargetSet[T]
 	prevPick *list.Node[T]
 	mut      sync.RWMutex
 	all      bool
 }
 
-func NewPicker[T comparable](ps *PickableSet[T]) *Picker[T] {
+func NewPicker[T comparable](ps *TargetSet[T]) *Picker[T] {
 	return &Picker[T]{
 		ps:       ps,
 		prevPick: ps.list.Front,
@@ -171,7 +171,7 @@ func NewPicker[T comparable](ps *PickableSet[T]) *Picker[T] {
 	}
 }
 
-func NewAllPicker[T comparable](ps *PickableSet[T]) *Picker[T] {
+func NewAllPicker[T comparable](ps *TargetSet[T]) *Picker[T] {
 	return &Picker[T]{
 		ps:       ps,
 		prevPick: ps.list.Back,
@@ -193,23 +193,23 @@ func (p *Picker[T]) hasValue(key T) bool {
 	}
 }
 
-// Pick picks the next unblocked value of the PickableSet
+// Pick picks the next unblocked value of the TargetSet
 func (p *Picker[T]) Pick() (ret T, err error) {
 	p.mut.Lock()
 	defer p.mut.Unlock()
 	p.ps.mut.RLock()
 	defer p.ps.mut.RUnlock()
 	if p.ps.list.Front == nil && p.ps.list.Back == nil {
-		return ret, ErrListIsEmpty
+		return ret, errors.WithStack(ErrListIsEmpty)
 	}
 	if p.ps.list.Front == nil || p.ps.list.Back == nil {
-		return ret, ErrListIsInvalid
+		return ret, errors.WithStack(ErrListIsInvalid)
 	}
 	if p.ps.len() == 0 {
 		return ret, ErrSetIsEmpty
 	}
 	if len(p.ps.searchMap) == len(p.ps.blockedSet) {
-		return ret, ErrNoElementAvailableForPicking
+		return ret, errors.WithStack(ErrNoElementAvailableForPicking)
 	}
 	if isDanglingNode(p.prevPick) {
 		p.prevPick = p.ps.list.Back
@@ -222,7 +222,7 @@ func (p *Picker[T]) Pick() (ret T, err error) {
 	}
 
 	arrivedHead := false
-	arrivedTail := true
+	arrivedTail := false
 
 	maxIter := p.ps.Len() * 3
 
@@ -241,7 +241,7 @@ func (p *Picker[T]) Pick() (ret T, err error) {
 			arrivedTail = true
 		}
 		if arrivedHead && arrivedTail {
-			return *new(T), ErrNoElementAvailableForPicking
+			return *new(T), errors.WithStack(ErrNoElementAvailableForPicking)
 		}
 		if currentPick.Next == nil {
 			currentPick = p.ps.list.Front
@@ -266,4 +266,4 @@ var ErrListIsEmpty = errors.New("list is empty")
 
 var ErrListIsInvalid = errors.New("list integrity failure")
 
-var ErrMaxIteration = errors.New("PickableSet is invalid, cannot find an available after going through maximum iterations")
+var ErrMaxIteration = errors.New("TargetSet is invalid, cannot find an available after going through maximum iterations")
