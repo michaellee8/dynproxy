@@ -1,4 +1,4 @@
-package pickset
+package targetset
 
 import (
 	"github.com/pkg/errors"
