@@ -14,6 +14,10 @@ func SearchIntsEqual(a []int, x int) int {
 	}
 }
 
+func HasIntOnSorted(a []int, x int) bool {
+	return SearchIntsEqual(a, x) != len(a)
+}
+
 func SearchStringsEqual(a []string, x string) int {
 	searchedIndex := sort.SearchStrings(a, x)
 	if searchedIndex == len(a) {
@@ -24,4 +28,8 @@ func SearchStringsEqual(a []string, x string) int {
 	} else {
 		return len(a)
 	}
+}
+
+func HasStringOnSorted(a []string, x string) bool {
+	return SearchStringsEqual(a, x) != len(a)
 }
