@@ -156,30 +156,55 @@ func (s *TargetSet[T]) BlockForDuration(key T, duration time.Duration) bool {
 }
 
 type Picker[T comparable] struct {
-	ps       *TargetSet[T]
-	prevPick *list.Node[T]
-	mut      sync.RWMutex
-	all      bool
-	noRepeat bool
+	ps          *TargetSet[T]
+	prevPick    *list.Node[T]
+	mut         sync.RWMutex
+	all         bool
+	noRepeat    bool
+	arrivedTail bool
 }
 
 func NewPicker[T comparable](ps *TargetSet[T]) *Picker[T] {
 	return &Picker[T]{
-		ps:       ps,
-		prevPick: ps.list.Back,
-		mut:      sync.RWMutex{},
-		all:      false,
-		noRepeat: false,
+		ps:          ps,
+		prevPick:    ps.list.Back,
+		mut:         sync.RWMutex{},
+		all:         false,
+		noRepeat:    false,
+		arrivedTail: false,
 	}
 }
 
 func NewAllPicker[T comparable](ps *TargetSet[T]) *Picker[T] {
 	return &Picker[T]{
-		ps:       ps,
-		prevPick: ps.list.Back,
-		mut:      sync.RWMutex{},
-		all:      true,
-		noRepeat: false,
+		ps:          ps,
+		prevPick:    ps.list.Back,
+		mut:         sync.RWMutex{},
+		all:         true,
+		noRepeat:    false,
+		arrivedTail: false,
+	}
+}
+
+func NewPickerNoRepeat[T comparable](ps *TargetSet[T]) *Picker[T] {
+	return &Picker[T]{
+		ps:          ps,
+		prevPick:    ps.list.Back,
+		mut:         sync.RWMutex{},
+		all:         false,
+		noRepeat:    true,
+		arrivedTail: false,
+	}
+}
+
+func NewAllPickerNoRepeat[T comparable](ps *TargetSet[T]) *Picker[T] {
+	return &Picker[T]{
+		ps:          ps,
+		prevPick:    ps.list.Back,
+		mut:         sync.RWMutex{},
+		all:         true,
+		noRepeat:    true,
+		arrivedTail: false,
 	}
 }
 
@@ -233,6 +258,13 @@ func (p *Picker[T]) Pick() (ret T, err error) {
 
 	for iterCount < maxIter {
 		iterCount++
+		// if tail has been hit in previous iteration
+		if p.arrivedTail && p.noRepeat {
+			return *new(T), errors.WithStack(ErrArrivedEnd)
+		}
+		if currentPick.Next == nil {
+			p.arrivedTail = true
+		}
 		if p.hasValue(currentPick.Value) {
 			p.prevPick = currentPick
 			return currentPick.Value, nil
@@ -242,6 +274,10 @@ func (p *Picker[T]) Pick() (ret T, err error) {
 		}
 		if currentPick.Next == nil {
 			arrivedTail = true
+		}
+		// if tail has been hit in this iteration
+		if p.arrivedTail && p.noRepeat {
+			return *new(T), errors.WithStack(ErrArrivedEnd)
 		}
 		if arrivedHead && arrivedTail {
 			return *new(T), errors.WithStack(ErrNoElementAvailableForPicking)

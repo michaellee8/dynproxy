@@ -137,3 +137,99 @@ func TestPicker_NoBlock(t *testing.T) {
 		require.Equal(t, "c", picked)
 	}
 }
+
+func TestNewPickerNoRepeat(t *testing.T) {
+	ps := NewTargetSet[string]()
+	p1 := NewPickerNoRepeat(ps)
+	require.Equal(t, true, ps.Add("a"))
+	require.Equal(t, true, ps.Add("b"))
+	require.Equal(t, true, ps.Add("c"))
+	require.Equal(t, true, ps.Block("b"))
+	p2 := NewPickerNoRepeat(ps)
+	t.Run("pre add", func(t *testing.T) {
+		{
+			picked, err := p1.Pick()
+			require.NoError(t, err)
+			require.Equal(t, "a", picked)
+		}
+		{
+			picked, err := p1.Pick()
+			require.NoError(t, err)
+			require.Equal(t, "c", picked)
+		}
+		{
+			_, err := p1.Pick()
+			require.ErrorIs(t, err, ErrArrivedEnd)
+		}
+	})
+	t.Run("post add", func(t *testing.T) {
+		{
+			picked, err := p2.Pick()
+			require.NoError(t, err)
+			require.Equal(t, "a", picked)
+		}
+		{
+			picked, err := p2.Pick()
+			require.NoError(t, err)
+			require.Equal(t, "c", picked)
+		}
+		{
+			_, err := p2.Pick()
+			require.ErrorIs(t, err, ErrArrivedEnd)
+		}
+	})
+}
+
+func TestNewAllPickerNoRepeat(t *testing.T) {
+	ps := NewTargetSet[string]()
+	p1 := NewAllPickerNoRepeat(ps)
+	require.Equal(t, true, ps.Add("a"))
+	require.Equal(t, true, ps.Add("b"))
+	require.Equal(t, true, ps.Add("c"))
+	require.Equal(t, true, ps.Block("b"))
+	p2 := NewAllPickerNoRepeat(ps)
+	t.Run("pre add", func(t *testing.T) {
+		{
+			picked, err := p1.Pick()
+			require.NoError(t, err)
+			require.Equal(t, "a", picked)
+		}
+		{
+			picked, err := p1.Pick()
+			require.NoError(t, err)
+			require.Equal(t, "b", picked)
+		}
+		{
+			picked, err := p1.Pick()
+			require.NoError(t, err)
+			require.Equal(t, "c", picked)
+		}
+		{
+			picked, err := p1.Pick()
+			_ = picked
+			require.ErrorIs(t, err, ErrArrivedEnd)
+		}
+	})
+	t.Run("post add", func(t *testing.T) {
+		{
+			picked, err := p2.Pick()
+			require.NoError(t, err)
+			require.Equal(t, "a", picked)
+		}
+		{
+			picked, err := p2.Pick()
+			require.NoError(t, err)
+			require.Equal(t, "b", picked)
+		}
+		{
+			picked, err := p2.Pick()
+			require.NoError(t, err)
+			require.Equal(t, "c", picked)
+		}
+		{
+			picked, err := p2.Pick()
+			_ = picked
+			require.ErrorIs(t, err, ErrArrivedEnd)
+		}
+	})
+}
