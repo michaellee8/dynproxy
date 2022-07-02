@@ -5,43 +5,40 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"net"
-	"sync"
 	"time"
 )
 
-const defaultRetryBackoffBase = 2
 const defaultRetryBackoffFactor = 15 * time.Second
 const defaultHealthcheckTimeout = 5 * time.Second
 const defaultRetryMaxExponent = 8
 
+// nice reference for cancellation: https://go.dev/blog/pipelines
+
 type TargetSetWithHealthCheck struct {
 	ts *targetset.TargetSet[string]
 
-	retryBackoffBase   int
 	retryBackoffFactor time.Duration
 	maxExponent        int
 	healthchecker      func(target string) bool
 
-	closeWg *sync.WaitGroup
+	closeChan chan struct{}
 }
 
 func NewTargetSetWithHealthCheck() *TargetSetWithHealthCheck {
-	return NewTargetSetWithHealthCheckCustom(defaultRetryBackoffBase, defaultRetryBackoffFactor, defaultRetryMaxExponent, defaultHealthchecker)
+	return NewTargetSetWithHealthCheckCustom(defaultRetryBackoffFactor, defaultRetryMaxExponent, defaultHealthchecker)
 }
 
 func NewTargetSetWithHealthCheckCustom(
-	backoffBase int,
 	backoffFactor time.Duration,
 	maxExponent int,
 	healthchecker func(target string) bool,
 ) *TargetSetWithHealthCheck {
 	return &TargetSetWithHealthCheck{
 		ts:                 targetset.NewTargetSet[string](),
-		retryBackoffBase:   backoffBase,
 		retryBackoffFactor: backoffFactor,
 		maxExponent:        maxExponent,
 		healthchecker:      healthchecker,
-		closeWg:            &sync.WaitGroup{},
+		closeChan:          make(chan struct{}),
 	}
 }
 
@@ -55,6 +52,14 @@ func (hc *TargetSetWithHealthCheck) Picker() *targetset.Picker[string] {
 
 func (hc *TargetSetWithHealthCheck) AllPicker() *targetset.Picker[string] {
 	return targetset.NewAllPicker(hc.ts)
+}
+
+func (hc *TargetSetWithHealthCheck) PickerNoRepeat() *targetset.Picker[string] {
+	return targetset.NewPickerNoRepeat(hc.ts)
+}
+
+func (hc *TargetSetWithHealthCheck) AllPickerNoRepeat() *targetset.Picker[string] {
+	return targetset.NewAllPickerNoRepeat(hc.ts)
 }
 
 func (hc *TargetSetWithHealthCheck) Add(target string) bool {
@@ -78,46 +83,38 @@ func (hc *TargetSetWithHealthCheck) IsBlocked(target string) bool {
 }
 
 func (hc *TargetSetWithHealthCheck) Start() (err error) {
-	hc.closeWg.Add(1)
 	go hc.startChecker()
 	return nil
 }
 
 func (hc *TargetSetWithHealthCheck) Close() (err error) {
-	hc.closeWg.Done()
+	close(hc.closeChan)
+	return nil
+}
+
+func (hc *TargetSetWithHealthCheck) Block(target string) (err error) {
+	hc.ts.Block(target)
+	go hc.startHealthcheckRetry(target)
 	return nil
 }
 
 func (hc *TargetSetWithHealthCheck) startChecker() {
-	exit := make(chan struct{})
-	go func() {
-		hc.closeWg.Wait()
-		exit <- struct{}{}
-	}()
 
 	for {
 		select {
-		case <-exit:
+		case <-hc.closeChan:
 			return
 		case <-time.Tick(hc.retryBackoffFactor):
-			picker := hc.Picker()
-			firstPick, err := picker.Pick()
-			if err != nil {
-				logrus.Error(errors.Wrap(err, "cannot pick target"))
-				continue
-			}
-			hc.checkTarget(firstPick)
+			picker := hc.PickerNoRepeat()
 			for {
-				pick, err := picker.Pick()
-				if pick == firstPick {
-					// break if we loop back to the first pick
-					break
-				}
+				picked, err := picker.Pick()
 				if err != nil {
-					logrus.Error(errors.Wrap(err, "cannot pick target"))
+					if !errors.Is(err, targetset.ErrArrivedEnd) {
+						logrus.Error(errors.Wrap(err, "cannot pick target"))
+					}
 					break
 				}
-				hc.checkTarget(pick)
+				go hc.checkTarget(picked)
 			}
 		}
 
@@ -132,7 +129,28 @@ func (hc *TargetSetWithHealthCheck) checkTarget(target string) {
 }
 
 func (hc *TargetSetWithHealthCheck) startHealthcheckRetry(target string) {
+	exponent := 0
 
+	for {
+		select {
+		case <-time.After(hc.retryBackoffFactor * (1 << exponent)):
+			if !hc.ts.IsBlocked(target) {
+				// stop the coroutine if target is no longer blocked
+				return
+			}
+
+			if hc.healthchecker(target) {
+				hc.ts.Unblock(target)
+				return
+			}
+
+			if exponent < hc.maxExponent {
+				exponent++
+			}
+		case <-hc.closeChan:
+			return
+		}
+	}
 }
 
 func defaultHealthchecker(target string) bool {
