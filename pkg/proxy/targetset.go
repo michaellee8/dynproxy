@@ -134,7 +134,7 @@ func (hc *TargetSetWithHealthCheck) startHealthcheckRetry(target string) {
 	for {
 		select {
 		case <-time.After(hc.retryBackoffFactor * (1 << exponent)):
-			if !hc.ts.IsBlocked(target) {
+			if !hc.ts.IsBlocked(target) || !hc.ts.Has(target) {
 				// stop the coroutine if target is no longer blocked
 				return
 			}

@@ -15,7 +15,7 @@ require (
 	github.com/stretchr/testify v1.7.5 // indirect
 	github.com/zyedidia/generic v1.1.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	golang.org/x/exp v0.0.0-20220218215828-6cf2b201936e // indirect
+	golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d // indirect
 	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
