@@ -19,6 +19,8 @@ type TargetSetWithHealthCheck struct {
 	healthchecker      func(target string) bool
 
 	closeWg *sync.WaitGroup
+
+	blockedTargets map[string]struct{}
 }
 
 func NewTargetSetWithHealthCheck() *TargetSetWithHealthCheck {
@@ -68,11 +70,18 @@ func (hc *TargetSetWithHealthCheck) IsBlocked(target string) bool {
 }
 
 func (hc *TargetSetWithHealthCheck) Start() (err error) {
-
+	hc.closeWg.Add(1)
+	go hc.startChecker()
+	return nil
 }
 
 func (hc *TargetSetWithHealthCheck) Close() (err error) {
 	hc.closeWg.Done()
+	return nil
+}
+
+func (hc *TargetSetWithHealthCheck) startChecker() {
+
 }
 
 func defaultHealthchecker(target string) bool {
