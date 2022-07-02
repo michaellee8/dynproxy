@@ -104,7 +104,7 @@ func (hc *TargetSetWithHealthCheck) startChecker() {
 		select {
 		case <-hc.closeChan:
 			return
-		case <-time.Tick(hc.retryBackoffFactor):
+		case <-time.After(hc.retryBackoffFactor):
 			picker := hc.PickerNoRepeat()
 			for {
 				picked, err := picker.Pick()
