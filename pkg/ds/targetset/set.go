@@ -160,14 +160,16 @@ type Picker[T comparable] struct {
 	prevPick *list.Node[T]
 	mut      sync.RWMutex
 	all      bool
+	noRepeat bool
 }
 
 func NewPicker[T comparable](ps *TargetSet[T]) *Picker[T] {
 	return &Picker[T]{
 		ps:       ps,
-		prevPick: ps.list.Front,
+		prevPick: ps.list.Back,
 		mut:      sync.RWMutex{},
 		all:      false,
+		noRepeat: false,
 	}
 }
 
@@ -177,6 +179,7 @@ func NewAllPicker[T comparable](ps *TargetSet[T]) *Picker[T] {
 		prevPick: ps.list.Back,
 		mut:      sync.RWMutex{},
 		all:      true,
+		noRepeat: false,
 	}
 }
 
@@ -267,3 +270,5 @@ var ErrListIsEmpty = errors.New("list is empty")
 var ErrListIsInvalid = errors.New("list integrity failure")
 
 var ErrMaxIteration = errors.New("TargetSet is invalid, cannot find an available after going through maximum iterations")
+
+var ErrArrivedEnd = errors.New("the whole TargetSet has been iterated")

@@ -2,36 +2,44 @@ package proxy
 
 import (
 	"github.com/michaellee8/dynproxy/pkg/ds/targetset"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"net"
 	"sync"
 	"time"
 )
 
 const defaultRetryBackoffBase = 2
-const defaultRetryBackoffFactor = 5 * time.Second
-const defaultHealthcheckTimeout = 15 * time.Second
+const defaultRetryBackoffFactor = 15 * time.Second
+const defaultHealthcheckTimeout = 5 * time.Second
+const defaultRetryMaxExponent = 8
 
 type TargetSetWithHealthCheck struct {
 	ts *targetset.TargetSet[string]
 
 	retryBackoffBase   int
 	retryBackoffFactor time.Duration
+	maxExponent        int
 	healthchecker      func(target string) bool
 
 	closeWg *sync.WaitGroup
-
-	blockedTargets map[string]struct{}
 }
 
 func NewTargetSetWithHealthCheck() *TargetSetWithHealthCheck {
-	return NewTargetSetWithHealthCheckCustom(defaultRetryBackoffBase, defaultRetryBackoffFactor, defaultHealthchecker)
+	return NewTargetSetWithHealthCheckCustom(defaultRetryBackoffBase, defaultRetryBackoffFactor, defaultRetryMaxExponent, defaultHealthchecker)
 }
 
-func NewTargetSetWithHealthCheckCustom(backoffBase int, backoffFactor time.Duration, healthchecker func(target string) bool) *TargetSetWithHealthCheck {
+func NewTargetSetWithHealthCheckCustom(
+	backoffBase int,
+	backoffFactor time.Duration,
+	maxExponent int,
+	healthchecker func(target string) bool,
+) *TargetSetWithHealthCheck {
 	return &TargetSetWithHealthCheck{
 		ts:                 targetset.NewTargetSet[string](),
 		retryBackoffBase:   backoffBase,
 		retryBackoffFactor: backoffFactor,
+		maxExponent:        maxExponent,
 		healthchecker:      healthchecker,
 		closeWg:            &sync.WaitGroup{},
 	}
@@ -81,6 +89,49 @@ func (hc *TargetSetWithHealthCheck) Close() (err error) {
 }
 
 func (hc *TargetSetWithHealthCheck) startChecker() {
+	exit := make(chan struct{})
+	go func() {
+		hc.closeWg.Wait()
+		exit <- struct{}{}
+	}()
+
+	for {
+		select {
+		case <-exit:
+			return
+		case <-time.Tick(hc.retryBackoffFactor):
+			picker := hc.Picker()
+			firstPick, err := picker.Pick()
+			if err != nil {
+				logrus.Error(errors.Wrap(err, "cannot pick target"))
+				continue
+			}
+			hc.checkTarget(firstPick)
+			for {
+				pick, err := picker.Pick()
+				if pick == firstPick {
+					// break if we loop back to the first pick
+					break
+				}
+				if err != nil {
+					logrus.Error(errors.Wrap(err, "cannot pick target"))
+					break
+				}
+				hc.checkTarget(pick)
+			}
+		}
+
+	}
+}
+
+func (hc *TargetSetWithHealthCheck) checkTarget(target string) {
+	if !hc.healthchecker(target) {
+		hc.ts.Block(target)
+		go hc.startHealthcheckRetry(target)
+	}
+}
+
+func (hc *TargetSetWithHealthCheck) startHealthcheckRetry(target string) {
 
 }
 

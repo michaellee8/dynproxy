@@ -114,3 +114,26 @@ func TestPicker_NoElementAvailable(t *testing.T) {
 		require.Equal(t, "a", picked)
 	}
 }
+
+func TestPicker_NoBlock(t *testing.T) {
+	ps := NewTargetSet[string]()
+	require.Equal(t, true, ps.Add("a"))
+	require.Equal(t, true, ps.Add("b"))
+	require.Equal(t, true, ps.Add("c"))
+	p := NewPicker(ps)
+	{
+		picked, err := p.Pick()
+		require.NoError(t, err)
+		require.Equal(t, "a", picked)
+	}
+	{
+		picked, err := p.Pick()
+		require.NoError(t, err)
+		require.Equal(t, "b", picked)
+	}
+	{
+		picked, err := p.Pick()
+		require.NoError(t, err)
+		require.Equal(t, "c", picked)
+	}
+}
