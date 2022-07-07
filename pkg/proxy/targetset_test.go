@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-var enableProfileReport = true
+var enableProfileReport = false
 
 func TestTargetSetWithHealthCheck(t *testing.T) {
 
@@ -93,7 +93,7 @@ func TestTargetSetWithHealthCheck(t *testing.T) {
 }
 
 func writeGoroutineProfileWithCount(t *testing.T, count int) {
-	// noinspection
+	//goland:noinspection GoBoolExpressions
 	if !enableProfileReport {
 		return
 	}
