@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-var enableProfileReport = true
+var enableProfileReport = false
 
 func TestTargetSetWithHealthCheck(t *testing.T) {
 
