@@ -4,6 +4,7 @@ import (
 	"github.com/michaellee8/dynproxy/pkg/bpf/echodispatch"
 	"github.com/michaellee8/dynproxy/pkg/ds/targetset"
 	"github.com/michaellee8/dynproxy/pkg/proxy/op"
+	"github.com/pkg/errors"
 	"net"
 	"sync"
 )
@@ -86,6 +87,17 @@ func (p *DynProxy) ApplyOperation(op op.Operation) (err error) {
 
 func (p *DynProxy) addTarget(rule string, target string) (err error) {
 	if !p.hasRule(rule) {
-		return
+		return errors.Wrap(ErrRuleNotExist, "unable to add target")
+	}
+	if p.ruleMap[rule].targetSet.Has(target) {
+		return errors.Wrap(ErrTargetAlreadyExist, "unable to add target")
 	}
 }
+
+var ErrRuleNotExist = errors.New("rule does not exist")
+var ErrRuleAlreadyExist = errors.New("rule already exists")
+var ErrInternalIntegrity = errors.New("fatal error: DynProxy internal integrity failure")
+var ErrTargetNotExist = errors.New("target does not exist for the app")
+var ErrPortNotExist = errors.New("port does not exist")
+var ErrTargetAlreadyExist = errors.New("target already exist")
+var ErrPortAlreadyExist = errors.New("port already exist")
