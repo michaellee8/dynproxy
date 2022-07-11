@@ -4,6 +4,8 @@ import (
 	"github.com/michaellee8/dynproxy/pkg/bpf/echodispatch"
 	"github.com/michaellee8/dynproxy/pkg/ds/targetset"
 	"github.com/michaellee8/dynproxy/pkg/proxy/op"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"net"
 	"sync"
 )
@@ -48,8 +50,10 @@ type DynProxy struct {
 
 	ebpf bool
 
+	logger *logrus.Entry
+
 	// used if ebpf support is enabled
-	lisForEBPF *net.Listener
+	lis net.Listener
 }
 
 func NewDynProxy(ebpf bool) *DynProxy {
@@ -60,6 +64,7 @@ func NewDynProxy(ebpf bool) *DynProxy {
 		ruleTargetMap: make(map[ruleTargetMapKey]*ruleTargetMapValue),
 		echoDispatch:  echodispatch.NewEchoDispatch(),
 		ebpf:          ebpf,
+		logger:        logrus.WithField("src", "dynproxy"),
 	}
 }
 
@@ -86,6 +91,17 @@ func (p *DynProxy) ApplyOperation(op op.Operation) (err error) {
 
 func (p *DynProxy) addTarget(rule string, target string) (err error) {
 	if !p.hasRule(rule) {
-		return
+		return errors.Wrap(ErrRuleNotExist, "unable to add target")
+	}
+	if p.ruleMap[rule].targetSet.Has(target) {
+		return errors.Wrap(ErrTargetAlreadyExist, "unable to add target")
 	}
 }
+
+var ErrRuleNotExist = errors.New("rule does not exist")
+var ErrRuleAlreadyExist = errors.New("rule already exists")
+var ErrInternalIntegrity = errors.New("fatal error: DynProxy internal integrity failure")
+var ErrTargetNotExist = errors.New("target does not exist for the rule")
+var ErrPortNotExist = errors.New("port does not exist")
+var ErrTargetAlreadyExist = errors.New("target already exist")
+var ErrPortAlreadyExist = errors.New("port already exist")
