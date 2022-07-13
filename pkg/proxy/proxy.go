@@ -97,7 +97,7 @@ func (p *DynProxy) addTarget(rule string, target string) (err error) {
 var ErrRuleNotExist = errors.New("rule does not exist")
 var ErrRuleAlreadyExist = errors.New("rule already exists")
 var ErrInternalIntegrity = errors.New("fatal error: DynProxy internal integrity failure")
-var ErrTargetNotExist = errors.New("target does not exist for the app")
+var ErrTargetNotExist = errors.New("target does not exist for the rule")
 var ErrPortNotExist = errors.New("port does not exist")
 var ErrTargetAlreadyExist = errors.New("target already exist")
 var ErrPortAlreadyExist = errors.New("port already exist")
