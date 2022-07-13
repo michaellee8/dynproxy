@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"fmt"
 	"github.com/michaellee8/dynproxy/pkg/bpf/echodispatch"
 	"github.com/michaellee8/dynproxy/pkg/ds/targetset"
 	"github.com/michaellee8/dynproxy/pkg/proxy/op"
@@ -93,8 +94,22 @@ func (p *DynProxy) addTarget(rule string, target string) (err error) {
 	if !p.hasRule(rule) {
 		return errors.Wrap(ErrRuleNotExist, "unable to add target")
 	}
-	if p.ruleMap[rule].targetSet.Has(target) {
+	rv := p.ruleMap[rule]
+	if rv.targetSet.Has(target) {
 		return errors.Wrap(ErrTargetAlreadyExist, "unable to add target")
+	}
+	p.logger.Infof("adding target %s to rule %s", target, rule)
+	rv.targetSet.Add(target)
+	p.ruleTargetMap[ruleTargetMapKey{rule: rule, target: target}] = &ruleTargetMapValue{
+		mut:     &sync.RWMutex{},
+		connSet: &gsync.MapOf[*net.TCPConn, struct{}]{},
+	}
+	return nil
+}
+
+func (p *DynProxy) removeTarget(rule string, target string) (err error) {
+	if !p.hasRule(rule) {
+		return errors.Wrap(ErrRuleNotExist, "unable to remove target")
 	}
 }
 
@@ -105,3 +120,15 @@ var ErrTargetNotExist = errors.New("target does not exist for the rule")
 var ErrPortNotExist = errors.New("port does not exist")
 var ErrTargetAlreadyExist = errors.New("target already exist")
 var ErrPortAlreadyExist = errors.New("port already exist")
+
+type VerificationError struct {
+	fieldName string
+}
+
+func (e *VerificationError) Error() string {
+	return fmt.Sprintf("invalid field %s", e.fieldName)
+}
+
+func errIsUnexpected(err error) bool {
+	return !(err == nil || errors.Is(err, net.ErrClosed))
+}
