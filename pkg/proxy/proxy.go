@@ -5,6 +5,7 @@ import (
 	"github.com/michaellee8/dynproxy/pkg/ds/targetset"
 	"github.com/michaellee8/dynproxy/pkg/proxy/op"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"net"
 	"sync"
 )
@@ -49,8 +50,10 @@ type DynProxy struct {
 
 	ebpf bool
 
+	logger *logrus.Entry
+
 	// used if ebpf support is enabled
-	lisForEBPF *net.Listener
+	lis net.Listener
 }
 
 func NewDynProxy(ebpf bool) *DynProxy {
@@ -61,6 +64,7 @@ func NewDynProxy(ebpf bool) *DynProxy {
 		ruleTargetMap: make(map[ruleTargetMapKey]*ruleTargetMapValue),
 		echoDispatch:  echodispatch.NewEchoDispatch(),
 		ebpf:          ebpf,
+		logger:        logrus.WithField("src", "dynproxy"),
 	}
 }
 
